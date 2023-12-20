@@ -6,7 +6,12 @@ import express, { Request, Response } from 'express';
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+app.use(
+  cors({
+    origin: '*',
+  })
+);
 app.use(express.json());
 
 const openai = new OpenAI({
@@ -14,8 +19,16 @@ const openai = new OpenAI({
   organization: process.env.OPENAI_ORG_ID,
 });
 
+app.options('*', cors());
+
 app.post('/stream', async (req: Request, res: Response) => {
   try {
+    const payload = req.body;
+
+    const prompt =
+      payload.prompt ||
+      'Teach me about the movement of the electron around the nucleus in a simple way with few words.';
+
     const messages = [
       {
         role: 'user',
@@ -28,8 +41,8 @@ app.post('/stream', async (req: Request, res: Response) => {
       },
       {
         role: 'user',
-        content:
-          'Teach me about the movement of the electron around the nucleus in a simple way with few words.',
+        content: `${prompt},
+          If you receive a question not related to quantum mechanics, please ignore it and ask me for another question related to the topic.`,
       },
     ] as OpenAI.Chat.ChatCompletionMessage[];
 
@@ -45,13 +58,23 @@ app.post('/stream', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    const chunks = [];
+
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || '';
-      res.write(content);
-      //process.stdout.write(chunk.choices[0]?.delta?.content || '');
+
+      if (payload.stream) {
+        res.write(content);
+      } else {
+        chunks.push(content);
+      }
     }
 
-    res.end();
+    if (payload.stream) {
+      res.end();
+    } else {
+      res.json(chunks);
+    }
   } catch (error) {
     res.status(500).json({ error: 'Error processing your request' });
   }
