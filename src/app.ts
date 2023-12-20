@@ -41,8 +41,10 @@ app.post('/stream', async (req: Request, res: Response) => {
       },
       {
         role: 'user',
-        content: `${prompt},
-          If you receive a question not related to quantum mechanics, please ignore it and ask me for another question related to the topic.`,
+        content: `${prompt}.
+          If you receive a question not related to quantum mechanics or physics,
+          then you should advise about your abilities to only answer questions related to quantum mechanics
+          and then ask for a new question related to this topic.`,
       },
     ] as OpenAI.Chat.ChatCompletionMessage[];
 
