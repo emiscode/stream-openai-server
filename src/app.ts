@@ -164,4 +164,82 @@ app.post('/stream-audio', async (req: Request, res: Response) => {
   ]);
 });
 
+app.post('/real-time', async (req: Request, res: Response) => {
+  const payload = req.body;
+
+  const prompt =
+    payload.prompt ||
+    'Teach me about the movement of the electron around the nucleus in a simple way with few words.';
+
+  const messages = [
+    {
+      role: 'user',
+      content: 'You are a remarkable quantum mechanics professor.',
+    },
+    {
+      role: 'assistant',
+      content:
+        'I am thrilled to teach you about the true nature of the universe!',
+    },
+    {
+      role: 'user',
+      content: `${prompt}.
+          If you receive a question not related to quantum mechanics or physics,
+          then you should advise about your abilities to only answer questions related to quantum mechanics
+          and then ask for a new question related to this topic.`,
+    },
+  ] as OpenAI.Chat.ChatCompletionMessage[];
+
+  const stream = await openai.chat.completions.create({
+    model: 'gpt-4',
+    max_tokens: 2000,
+    messages,
+    stream: true,
+  });
+
+  const chunks = [];
+
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content || '';
+
+    chunks.push(content);
+  }
+
+  const audio = await openai.audio.speech.create({
+    model: 'tts-1',
+    voice: 'alloy',
+    input: chunks.join(' '),
+  });
+
+  // const audio = await openai.audio.speech.create({
+  //   model: 'tts-1',
+  //   voice: 'alloy',
+  //   input: 'Hello world! This is a streaming test.',
+  // });
+
+  const audioBuffer = Buffer.from(await audio.arrayBuffer());
+
+  const range = req.headers.range;
+  if (range) {
+    const parts = range.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : audioBuffer.length - 1;
+
+    const chunk = audioBuffer.slice(start, end + 1);
+    res.writeHead(206, {
+      'Content-Range': `bytes ${start}-${end}/${audioBuffer.length}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunk.length,
+      'Content-Type': 'audio/mp3',
+    });
+    res.end(chunk);
+  } else {
+    res.writeHead(200, {
+      'Content-Length': audioBuffer.length,
+      'Content-Type': 'audio/mp3',
+    });
+    res.end(audioBuffer);
+  }
+});
+
 export default app;
