@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import { OpenAI } from 'openai';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -80,6 +81,30 @@ app.post('/stream', async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({ error: 'Error processing your request' });
   }
+});
+
+app.post('/audio', async (req: Request, res: Response) => {
+  const audio = await openai.audio.speech.create({
+    model: 'tts-1',
+    voice: 'alloy',
+    input: 'Hello world! This is a streaming test.',
+  });
+
+  const buffer = Buffer.from(await audio.arrayBuffer());
+
+  // Convert the audio data to a Base64 string
+  const base64String = (buffer as Buffer).toString('base64');
+
+  // Set the headers to enable SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  // Send the Base64 string as an SSE message
+  res.write(base64String);
+
+  // End the SSE stream
+  res.end();
 });
 
 export default app;
